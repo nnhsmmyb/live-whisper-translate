@@ -1,0 +1,13 @@
+{
+  "host": "0.0.0.0",
+  "model": "facebook/nllb-200-3.3B",
+  "device_map": null,
+  "load_in_8bit": false,
+  "load_in_4bit": false,
+  "beam": 4,
+  "max_tokens": 128,
+  "instances": [
+    {"port": 8765, "device": "cuda:0"},
+    {"port": 8766, "device": "cuda:1"}
+  ]
+}

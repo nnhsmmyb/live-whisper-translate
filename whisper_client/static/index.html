@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transcript</title>
+  <link rel="icon" href="/favicon.ico" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>Transcript</h1>
+    <div class="controls">
+      <button id="btn-start" class="primary">開始</button>
+      <button id="btn-stop" class="danger" disabled>停止</button>
+      <span id="status-badge" class="badge idle">停止中</span>
+    </div>
+  </header>
+
+  <section class="toolbar">
+    <label>
+      音声ソース
+      <select id="audio-source"></select>
+    </label>
+    <div class="meter-wrap">
+      <span class="meter-label">入力</span>
+      <div class="meter"><div id="audio-meter"></div></div>
+    </div>
+    <div id="server-status" class="server-status" aria-label="翻訳サーバ状態"></div>
+    <button id="btn-settings" class="ghost" type="button" aria-expanded="false">設定パネルを表示</button>
+  </section>
+
+  <section id="settings-panel" class="settings hidden">
+    <p id="settings-locked-note" class="settings-note hidden">実行中は設定を変更できません。変更するには一度停止してください。</p>
+    <p id="settings-auto-note" class="settings-note">変更は自動で保存されます（次回の開始時に反映）。</p>
+    <div class="preset-bar">
+      <label>プリセット
+        <select id="preset-select"><option value="">—</option></select>
+      </label>
+      <button id="btn-preset-apply" class="ghost" type="button">読み込み</button>
+      <label>名前 <input id="preset-name" type="text" placeholder="プリセット名"></label>
+      <button id="btn-preset-save" class="ghost" type="button">登録</button>
+      <button id="btn-preset-delete" class="ghost danger-text" type="button">削除</button>
+    </div>
+    <div class="settings-grid">
+      <label>起こし言語 <select id="cfg-lang"><option value="en">英語</option><option value="es">スペイン語</option><option value="ja">日本語</option></select></label>
+      <label>翻訳先 <select id="cfg-translate-tgt-lang">
+        <option value="jpn_Jpan">日本語</option>
+        <option value="eng_Latn">英語</option>
+        <option value="spa_Latn">スペイン語</option>
+        <option value="zho_Hans">中国語</option>
+        <option value="kor_Hang">韓国語</option>
+      </select></label>
+      <label>Whisper モデル <input id="cfg-whisper-model" type="text"></label>
+      <label>chunk_sec <input id="cfg-chunk-sec" type="number" step="0.5" min="1"></label>
+      <label>whisper_beam <input id="cfg-whisper-beam" type="number" min="1" max="10"></label>
+      <label>min_chars <input id="cfg-min-chars" type="number" min="1"></label>
+      <label>buffer_chars <input id="cfg-buffer-chars" type="number" min="1"></label>
+      <label>chunk_flush_chars <input id="cfg-chunk-flush-chars" type="number" min="0" title="0で無効。句点が付きにくい言語向け"></label>
+      <label>translate_timeout <input id="cfg-translate-timeout" type="number" step="1" min="1"></label>
+    </div>
+  </section>
+
+  <main class="transcript-area">
+    <section class="panel">
+      <h2 id="transcript-title">文字起こし / 翻訳</h2>
+      <div id="transcript-feed" class="feed"></div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

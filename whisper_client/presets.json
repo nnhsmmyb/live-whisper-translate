@@ -1,0 +1,24 @@
+{
+  "en-to-ja": {
+    "lang": "en",
+    "translate_tgt_lang": "jpn_Jpan",
+    "chunk_sec": 3.0,
+    "whisper_model": "large-v3",
+    "whisper_beam": 3,
+    "translate_timeout": 30.0,
+    "min_chars": 20,
+    "buffer_chars": 120,
+    "chunk_flush_chars": 0
+  },
+  "ja-native": {
+    "lang": "ja",
+    "translate_tgt_lang": "jpn_Jpan",
+    "chunk_sec": 3.0,
+    "whisper_model": "large-v3",
+    "whisper_beam": 3,
+    "translate_timeout": 30.0,
+    "min_chars": 20,
+    "buffer_chars": 120,
+    "chunk_flush_chars": 10
+  }
+}
