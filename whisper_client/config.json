@@ -1,7 +1,7 @@
 {
   "host": "0.0.0.0",
-  "port": 8080,
-  "lang": "en",
+  "port": 9999,
+  "lang": "es",
   "translate_tgt_lang": "jpn_Jpan",
   "chunk_sec": 3.0,
   "whisper_model": "large-v3",
@@ -13,5 +13,6 @@
   "translate_timeout": 30.0,
   "min_chars": 20,
   "buffer_chars": 120,
-  "chunk_flush_chars": 0
+  "chunk_flush_chars": 0,
+  "max_feed_entries": 20
 }

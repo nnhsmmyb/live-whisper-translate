@@ -89,6 +89,7 @@ def save_presets(presets):
 def normalize_config(config):
     config.setdefault("translate_tgt_lang", "jpn_Jpan")
     config.setdefault("chunk_flush_chars", 0)
+    config.setdefault("max_feed_entries", 20)
     return config
 
 
@@ -136,6 +137,7 @@ class ConfigUpdate(BaseModel):
     min_chars: int
     buffer_chars: int
     chunk_flush_chars: int = 0
+    max_feed_entries: int = 20
 
 
 class AudioSourceUpdate(BaseModel):
@@ -341,7 +343,7 @@ def main():
     args = parse_args()
     config = load_config(args.config)
     host = args.host or config.get("host", "0.0.0.0")
-    port = args.port or config.get("port", 8080)
+    port = args.port or config.get("port", 9999)
 
     print(f"UI: http://{host}:{port}")
     uvicorn.run(app, host=host, port=port, log_level="info", ws="none")

@@ -41,11 +41,11 @@ cd whisper_client
 python client_server.py
 ```
 
-ブラウザで `http://localhost:8080` を開きます。
+ブラウザで `http://localhost:9999` を開きます。
 
 ## 環境に合わせた設定
 
-リポジトリのデフォルトは `localhost` と自動検出の音声ソースです。自分の環境用に戻す・変更する場合は、次のファイルを編集します。
+リポジトリのデフォルトは `localhost` と自動検出の音声ソースです。別環境向けに変更する場合は、次のファイルを編集します。
 
 ### 翻訳サーバの URL（別マシンや LAN 内の IP を使う場合）
 
@@ -53,12 +53,12 @@ python client_server.py
 
 ```json
 "translate_urls": [
-  "http://192.168.100.100:8765/translate",
-  "http://192.168.100.100:8766/translate"
+  "http://localhost:8765/translate",
+  "http://localhost:8766/translate"
 ]
 ```
 
-翻訳サーバと Web UI が同じマシンなら `localhost` のままで構いません。
+別マシンや LAN 内の IP を使う場合は、上記の `localhost` をそのマシンの IP に置き換えます。
 
 ### 音声ソース
 
@@ -79,7 +79,7 @@ python client_server.py
 
 ### Web UI の待ち受けアドレス
 
-`whisper_client/config.json` の `host` / `port` を変更します（デフォルト: `0.0.0.0:8080`）。
+`whisper_client/config.json` の `host` / `port` を変更します（デフォルト: `0.0.0.0:9999`）。
 
 ## 設定項目の一覧
 

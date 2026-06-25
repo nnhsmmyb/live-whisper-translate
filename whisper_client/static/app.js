@@ -28,6 +28,7 @@ const configFields = [
   "cfg-buffer-chars",
   "cfg-chunk-flush-chars",
   "cfg-translate-timeout",
+  "cfg-max-feed-entries",
 ];
 
 const SRC_LABEL = { en: "EN", es: "ES", ja: "JA" };
@@ -35,8 +36,6 @@ const TGT_LABEL = {
   jpn_Jpan: "JA",
   eng_Latn: "EN",
   spa_Latn: "ES",
-  zho_Hans: "ZH",
-  kor_Hang: "KO",
 };
 
 function updateTranscriptTitle(lang, tgtLang) {
@@ -48,6 +47,7 @@ function updateTranscriptTitle(lang, tgtLang) {
 let running = false;
 const pendingEntries = new Map();
 let serverStatusTimer = null;
+let maxFeedEntries = 20;
 
 function renderServerStatus(servers) {
   serverStatus.innerHTML = "";
@@ -132,7 +132,24 @@ function updateSettingsButtonLabel() {
 }
 
 function scrollFeed() {
-  transcriptFeed.scrollTop = transcriptFeed.scrollHeight;
+  transcriptFeed.scrollTop = 0;
+}
+
+function removePendingEntry(el) {
+  for (const [key, pendingEl] of pendingEntries) {
+    if (pendingEl === el) {
+      pendingEntries.delete(key);
+      return;
+    }
+  }
+}
+
+function trimFeed() {
+  while (transcriptFeed.children.length > maxFeedEntries) {
+    const el = transcriptFeed.lastElementChild;
+    removePendingEntry(el);
+    el.remove();
+  }
 }
 
 function createEntry(sourceText) {
@@ -143,7 +160,8 @@ function createEntry(sourceText) {
     <div class="translation pending">翻訳中...</div>
     <div class="meta"></div>
   `;
-  transcriptFeed.appendChild(el);
+  transcriptFeed.prepend(el);
+  trimFeed();
   scrollFeed();
   return el;
 }
@@ -155,7 +173,8 @@ function appendError(message) {
     <div class="meta">エラー</div>
     <div class="translation">${escapeHtml(message)}</div>
   `;
-  transcriptFeed.appendChild(el);
+  transcriptFeed.prepend(el);
+  trimFeed();
   scrollFeed();
 }
 
@@ -191,6 +210,7 @@ function readConfigFromForm() {
     buffer_chars: Number($("cfg-buffer-chars").value),
     chunk_flush_chars: Number($("cfg-chunk-flush-chars").value),
     translate_timeout: Number($("cfg-translate-timeout").value),
+    max_feed_entries: Number($("cfg-max-feed-entries").value),
   };
 }
 
@@ -204,6 +224,9 @@ function applyConfigToForm(config) {
   $("cfg-buffer-chars").value = config.buffer_chars;
   $("cfg-chunk-flush-chars").value = config.chunk_flush_chars ?? 0;
   $("cfg-translate-timeout").value = config.translate_timeout;
+  $("cfg-max-feed-entries").value = config.max_feed_entries ?? 20;
+  maxFeedEntries = Number($("cfg-max-feed-entries").value) || 20;
+  trimFeed();
   updateTranscriptTitle(config.lang, config.translate_tgt_lang || "jpn_Jpan");
 }
 
@@ -252,6 +275,8 @@ async function saveConfig() {
   }
   const body = readConfigFromForm();
   await api("/api/config", { method: "PUT", body: JSON.stringify(body) });
+  maxFeedEntries = body.max_feed_entries || 20;
+  trimFeed();
   updateTranscriptTitle(body.lang, body.translate_tgt_lang);
   refreshServerStatus();
 }
@@ -307,6 +332,8 @@ function handleEvent(data) {
     el.querySelector(".meta").textContent =
       `${data.elapsed}s / ${data.source.length}字 / ${data.gpu}`;
     pendingEntries.delete(data.source);
+    transcriptFeed.prepend(el);
+    trimFeed();
     scrollFeed();
   }
   if (data.type === "audio_level") {
