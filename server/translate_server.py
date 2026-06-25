@@ -1,15 +1,18 @@
 import argparse
 import json
 import os
+import sys
 import time
-
-import torch
-import uvicorn
-from fastapi import FastAPI
-from pydantic import BaseModel, Field
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, BitsAndBytesConfig
+from pathlib import Path
 
 DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "server_config.json")
+RUN_DIR = Path(__file__).resolve().parent / ".run"
+SCRIPT_PATH = Path(__file__).resolve()
+ROOT_DIR = SCRIPT_PATH.parent.parent
+sys.path.insert(0, str(ROOT_DIR))
+
+from process_ctl import ProcessManager, dispatch_command
+
 LANG_ALIASES = {
     "en": "eng_Latn",
     "eng": "eng_Latn",
@@ -34,6 +37,7 @@ MADLAD_TGT = {
     "kor_Hang": "ko",
 }
 
+app = None
 tokenizer = None
 translator = None
 model_name = None
@@ -44,20 +48,6 @@ load_in_8bit = False
 load_in_4bit = False
 num_beams = 4
 max_new_tokens = 128
-
-
-class TranslateRequest(BaseModel):
-    text: str = Field(min_length=1)
-    src_lang: str = "eng_Latn"
-    tgt_lang: str = "jpn_Jpan"
-
-
-class TranslateResponse(BaseModel):
-    text: str
-    elapsed: float
-
-
-app = FastAPI()
 
 
 def load_config(path, instance=0):
@@ -110,10 +100,14 @@ def model_input_device():
 
 
 def uses_multi_gpu():
+    import torch
+
     return device_map == "auto" and torch.cuda.device_count() >= 2
 
 
 def build_max_memory(margin_gb):
+    import torch
+
     max_memory = {}
     for index in range(torch.cuda.device_count()):
         total_gb = torch.cuda.get_device_properties(index).total_memory / (1024**3)
@@ -129,6 +123,9 @@ def normalize_device(device_name):
 
 
 def load_model(config):
+    import torch
+    from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, BitsAndBytesConfig
+
     global tokenizer, translator, model_name, model_backend, device, device_map, load_in_8bit, load_in_4bit
 
     name = config["model"]
@@ -211,6 +208,8 @@ def prepare_input(text, src_lang, tgt_lang):
 
 
 def translate_text(text, src_lang, tgt_lang="jpn_Jpan"):
+    import torch
+
     inputs = prepare_input(text, src_lang, tgt_lang)
     normalized_tgt = normalize_tgt_lang(tgt_lang)
 
@@ -241,6 +240,8 @@ def translate_text(text, src_lang, tgt_lang="jpn_Jpan"):
 
 
 def gpu_memory_status():
+    import torch
+
     if not torch.cuda.is_available():
         return []
     rows = []
@@ -255,47 +256,133 @@ def gpu_memory_status():
     return rows
 
 
-@app.get("/health")
-def health():
-    return {
-        "status": "ok",
-        "model": model_name,
-        "backend": model_backend,
-        "device": device,
-        "device_map": device_map,
-        "load_in_8bit": load_in_8bit,
-        "load_in_4bit": load_in_4bit,
-        "gpus": gpu_memory_status(),
-        "model_loaded": translator is not None,
-    }
+def create_app():
+    global app
+
+    if app is not None:
+        return app
+
+    from fastapi import FastAPI
+    from pydantic import BaseModel, Field
+
+    class TranslateRequest(BaseModel):
+        text: str = Field(min_length=1)
+        src_lang: str = "eng_Latn"
+        tgt_lang: str = "jpn_Jpan"
+
+    class TranslateResponse(BaseModel):
+        text: str
+        elapsed: float
+
+    app = FastAPI()
+
+    @app.get("/health")
+    def health():
+        return {
+            "status": "ok",
+            "model": model_name,
+            "backend": model_backend,
+            "device": device,
+            "device_map": device_map,
+            "load_in_8bit": load_in_8bit,
+            "load_in_4bit": load_in_4bit,
+            "gpus": gpu_memory_status(),
+            "model_loaded": translator is not None,
+        }
+
+    @app.post("/translate", response_model=TranslateResponse)
+    def translate(request: TranslateRequest):
+        translated, elapsed = translate_text(request.text, request.src_lang, request.tgt_lang)
+        return TranslateResponse(text=translated, elapsed=elapsed)
+
+    return app
 
 
-@app.post("/translate", response_model=TranslateResponse)
-def translate(request: TranslateRequest):
-    translated, elapsed = translate_text(request.text, request.src_lang, request.tgt_lang)
-    return TranslateResponse(text=translated, elapsed=elapsed)
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="Translation server")
-    parser.add_argument(
+def build_parser():
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument(
         "--config",
         default=DEFAULT_CONFIG_PATH,
         help=f"Path to config file (default: {DEFAULT_CONFIG_PATH})",
     )
-    parser.add_argument(
+
+    parser = argparse.ArgumentParser(description="Translation server", add_help=False)
+    subparsers = parser.add_subparsers(dest="command")
+
+    serve = subparsers.add_parser("serve", parents=[common], help="Run server (foreground)", add_help=False)
+    serve.add_argument(
         "--instance",
         type=int,
         default=0,
         help="Instance index in server_config.json (default: 0)",
     )
-    return parser.parse_args()
+
+    subparsers.add_parser("start", parents=[common], help="Start all instances in background", add_help=False)
+    subparsers.add_parser("kill", parents=[common], help="Stop all instances", add_help=False)
+    subparsers.add_parser("restart", parents=[common], help="Stop all instances, then start", add_help=False)
+    return parser
 
 
-def main():
+def instance_names(config_path):
+    names = [f"instance-{i}" for i in range(instance_count(config_path))]
+    manager = ProcessManager(RUN_DIR)
+    for name in manager.list_names("instance-"):
+        if name not in names:
+            names.append(name)
+    return names
+
+
+def cmd_start(args):
+    manager = ProcessManager(RUN_DIR)
+    for index in range(instance_count(args.config)):
+        name = f"instance-{index}"
+        config = load_config(args.config, index)
+        if manager.is_alive(name):
+            pid = manager.read_pid(name)
+            print(f"Instance {index} already running (pid {pid}, port {config['port']})")
+            continue
+
+        cmd = [
+            sys.executable,
+            str(SCRIPT_PATH),
+            "serve",
+            "--config",
+            os.path.abspath(args.config),
+            "--instance",
+            str(index),
+        ]
+        pid = manager.spawn(name, cmd, cwd=SCRIPT_PATH.parent)
+        print(f"Started instance {index} on port {config['port']} (pid {pid})")
+
+
+def cmd_kill(args):
+    manager = ProcessManager(RUN_DIR)
+    for name in instance_names(args.config):
+        if manager.is_alive(name):
+            if manager.kill(name):
+                print(f"Stopped {name}")
+            else:
+                print(f"Failed to stop {name}", file=sys.stderr)
+        elif manager.read_pid(name) is not None or manager.pid_path(name).exists():
+            manager.pid_path(name).unlink(missing_ok=True)
+            print(f"{name} was not running (removed stale pid file)")
+
+
+def cmd_restart(args):
+    cmd_kill(args)
+    alive = ProcessManager(RUN_DIR).wait_all_dead(instance_names(args.config))
+    if alive:
+        print(f"Processes still running: {', '.join(alive)}", file=sys.stderr)
+        raise SystemExit(1)
+    cmd_start(args)
+
+
+def run_server(args):
+    import torch
+    import uvicorn
+
     global num_beams, max_new_tokens
 
-    args = parse_args()
     config = load_config(args.config, args.instance)
     num_beams = config["beam"]
     max_new_tokens = config["max_tokens"]
@@ -331,7 +418,16 @@ def main():
     load_model(config)
     print(f"Ready on http://{config['host']}:{config['port']} ({model_name})")
 
-    uvicorn.run(app, host=config["host"], port=config["port"], log_level="info")
+    uvicorn.run(create_app(), host=config["host"], port=config["port"], log_level="info")
+
+
+def main():
+    dispatch_command(build_parser(), {
+        "serve": run_server,
+        "start": cmd_start,
+        "kill": cmd_kill,
+        "restart": cmd_restart,
+    })
 
 
 if __name__ == "__main__":

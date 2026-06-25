@@ -25,23 +25,17 @@ pip install -r requirements.txt
 
 ## 使い方
 
-### 1. 翻訳サーバを起動
+起動・停止などのコマンドは、各スクリプトのヘルプを参照してください。
 
 ```bash
 cd server
-./start_translate_servers.sh
-```
+python3 translate_server.py
 
-`server_config.json` の `instances` に登録された数だけサーバが起動します（デフォルトはポート 8765 / 8766）。
-
-### 2. Web UI を起動
-
-```bash
 cd whisper_client
-python client_server.py
+python3 client_server.py
 ```
 
-ブラウザで `http://localhost:9999` を開きます。
+ブラウザ UI は `http://localhost:9999`（`whisper_client/config.json` の `port` で変更可）です。
 
 ## 環境に合わせた設定
 
