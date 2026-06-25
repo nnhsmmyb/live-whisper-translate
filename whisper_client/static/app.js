@@ -210,7 +210,7 @@ function readConfigFromForm() {
     buffer_chars: Number($("cfg-buffer-chars").value),
     chunk_flush_chars: Number($("cfg-chunk-flush-chars").value),
     translate_timeout: Number($("cfg-translate-timeout").value),
-    max_feed_entries: Number($("cfg-max-feed-entries").value),
+    max_feed_entries: Number($("cfg-max-feed-entries").value) || 20,
   };
 }
 
@@ -224,7 +224,7 @@ function applyConfigToForm(config) {
   $("cfg-buffer-chars").value = config.buffer_chars;
   $("cfg-chunk-flush-chars").value = config.chunk_flush_chars ?? 0;
   $("cfg-translate-timeout").value = config.translate_timeout;
-  $("cfg-max-feed-entries").value = config.max_feed_entries ?? 20;
+  $("cfg-max-feed-entries").value = config.max_feed_entries > 0 ? config.max_feed_entries : 20;
   maxFeedEntries = Number($("cfg-max-feed-entries").value) || 20;
   trimFeed();
   updateTranscriptTitle(config.lang, config.translate_tgt_lang || "jpn_Jpan");
